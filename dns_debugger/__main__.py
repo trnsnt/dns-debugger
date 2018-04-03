@@ -28,7 +28,7 @@ def run():
     elif args.ui == "server":
         from dns_debugger.ui.server import APP
 
-        APP.run()
+        APP.run(host="0.0.0.0")
 
 
 if __name__ == "__main__":
