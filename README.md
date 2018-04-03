@@ -15,6 +15,9 @@ Goal is to help you to find why a DNS zone is not working. To do this, it will
 ## How to use it
 
 ### Installation 
+#### Prerequisites
+ * Python 3.6
+ * pipenv https://docs.pipenv.org/
 ```
 $ pipenv shell
 ```
@@ -57,7 +60,7 @@ $ python -m dns_debugger -d dnstests.fr
     "failures": [],
     "success": [
       {
-        "description": "Get SOA records for dnstests.fr. from defautl resolver",
+        "description": "Get SOA records for dnstests.fr. from default resolver",
         "result": "[RRSET] [[SOA] dan.ns.cloudflare.com. dns.cloudflare.com. 2027406459 10000 2400 604800 3600]",
         "success": true
       }
@@ -78,13 +81,18 @@ $ curl http://127.0.0.1:5000/dnstests.fr
     "failures": [],
     "success": [
       {
-        "description": "Get SOA records for dnstests.fr. from defautl resolver",
+        "description": "Get SOA records for dnstests.fr. from default resolver",
         "result": "[RRSET] [[SOA] dan.ns.cloudflare.com. dns.cloudflare.com. 2027406459 10000 2400 604800 3600]",
         "success": true
       }
     ]
   }
 }
+```
+#### With docker
+```
+$ docker build -t dns-debugger:latest .
+$ docker run -p 5000:5000 dns-debugger:latest
 ```
 
 ## What to do next ?

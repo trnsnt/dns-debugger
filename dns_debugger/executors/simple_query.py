@@ -5,7 +5,7 @@ from dns_debugger.executors.testsuite import TestCase
 from dns_debugger.query import dns_query
 from dns_debugger.type import DataType
 
-RESOLVERS = [None, '8.8.8.8', '8.8.4.4', '9.9.9.9']
+RESOLVERS = [None, '8.8.8.8', '8.8.4.4', '9.9.9.9', '1.1.1.1']
 
 
 def run_tests(qname: str):
@@ -20,7 +20,7 @@ def run_tests(qname: str):
 def _query(qname: str, dtype: DataType, resolver) -> TestCase:
     """Make the dns query"""
     if resolver is None:
-        resolver_name = "defautl resolver"
+        resolver_name = "default resolver"
     else:
         resolver_name = resolver
     description = "Get {dtype} records for {qname} from {res}".format(dtype=dtype.name, qname=qname, res=resolver_name)
