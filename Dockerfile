@@ -4,7 +4,7 @@ EXPOSE 5000
 
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN apt-get -y update && apt-get -y install dialog apt-utils install libssl-dev swig
+RUN apt-get -y update && apt-get -y install dialog apt-utils libssl-dev swig
 RUN apt-get -y upgrade
 
 RUN pip install --upgrade pip
