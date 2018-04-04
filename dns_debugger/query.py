@@ -1,55 +1,56 @@
 """All methods related to DNS query"""
-from typing import Union
 
 import dns
-from dns import resolver
 from dns.rcode import NOERROR, _by_value
 
 from dns_debugger import LOGGER
-from dns_debugger.dnssec.type import SignedRRSet, DS, DnsKey, RRSig
 from dns_debugger.exceptions import QueryTimeException, QueryErrException, DnsDebuggerException, \
     QueryNoResponseException
-from dns_debugger.type import RRSet, DataType, A, TXT, NS, Soa, AAAA, MX
+from dns_debugger.models import Resolver
+from dns_debugger.records_models import RRSet, DataType, A, TXT, NS, Soa, AAAA, MX, DnsKey, RRSig, DS, PTR
 
-DEFAULT_TIMEOUT = 1
+DEFAULT_TIMEOUT = 5
 
 
-def dns_query(qname: str, rdtype: DataType, want_dnssec=False, origin: str = None) -> Union[RRSet, SignedRRSet]:
+def dns_query(qname: str, rdtype: DataType, want_dnssec=False, origin: Resolver = None) -> RRSet:
     """Make a DNS query"""
-    LOGGER.debug("Querying %s for type %s, origin %s", qname, rdtype.name, origin)
     if origin is None:
-        origin = resolver.Resolver().nameservers[0]
+        origin = Resolver()
 
-    message = dns.message.make_query(qname, rdtype.value, use_edns=0, payload=4096, want_dnssec=want_dnssec)
-    try:
-        response = dns.query.udp(message, origin, timeout=DEFAULT_TIMEOUT)
-    except dns.exception.Timeout:
-        raise QueryTimeException(message="Timeout during dns query (origin={}, dest={}, type={})".format(origin,
-                                                                                                         qname,
-                                                                                                         rdtype.name))
-    if response.rcode() != NOERROR:
-        raise QueryErrException(message="Error during DNS query, status is {}".format(_by_value.get(response.rcode())))
+    LOGGER.debug("Querying %s for type %s, origin %s", qname, rdtype.name, origin)
+
+    response = make_query(origin.ip_addr, qname, rdtype, want_dnssec)
 
     if response.answer:
         answers = response.answer
     elif response.authority:
         answers = response.authority
     else:
+        LOGGER.critical("No answer received for type %s, origin %s", rdtype.name, origin)
         raise QueryErrException(message="No answer received")
 
-    if want_dnssec and len(response.answer) < 2:
+    if want_dnssec and len(answers) < 2:
         raise QueryNoResponseException(message="DNSSEC not supported")
 
-    items = [item for item in answers[0].items if item.rdtype == rdtype.value]
-    if not items:
-        records = []
-    else:
-        records = list(map(lambda r: _map_pythondns_record(r), items))
-    rrset = RRSet(rdata=answers[0], name=qname, records=records, rdtype=answers[0].rdtype, rdclass=answers[0].rdclass,
-                  ttl=answers[0].ttl)
+    received_rrset = answers[0]
+    records = list(map(lambda r: _map_pythondns_record(r), received_rrset.items))
+    rrset = RRSet(rdata=received_rrset, name=received_rrset.name.to_text(), records=records,
+                  rdtype=received_rrset.rdtype, rdclass=received_rrset.rdclass, ttl=received_rrset.ttl)
     if want_dnssec:
-        return SignedRRSet(rrset=rrset, rrsig=_map_pythondns_record(answers[1][0]))
+        rrset.rrsig = [_map_pythondns_record(r) for r in answers[1]]
     return rrset
+
+
+def make_query(origin, qname, rdtype, want_dnssec):
+    message = dns.message.make_query(qname, rdtype.value, use_edns=0, payload=4096, want_dnssec=want_dnssec)
+    try:
+        response = dns.query.udp(message, origin, timeout=DEFAULT_TIMEOUT)
+    except dns.exception.Timeout:
+        raise QueryTimeException(message="Timeout during dns query "
+                                         "(origin={}, dest={}, type={})".format(origin, qname, rdtype.name))
+    if response.rcode() != NOERROR:
+        raise QueryErrException(message="Error during DNS query, status is {}".format(_by_value.get(response.rcode())))
+    return response
 
 
 def _map_pythondns_record(record):
@@ -57,7 +58,7 @@ def _map_pythondns_record(record):
     if record.rdtype == DataType.A.value:
         return A(rdata=record, address=record.address)
     elif record.rdtype == DataType.TXT.value:
-        return TXT(rdata=record, value="".join(map(str, record.strings)))
+        return TXT(rdata=record, value="".join(map(lambda x: str(x, 'ascii'), record.strings)))
     elif record.rdtype == DataType.NS.value:
         return NS(rdata=record, target=record.target.to_text())
     elif record.rdtype == DataType.SOA.value:
@@ -79,4 +80,6 @@ def _map_pythondns_record(record):
         return DS(rdata=record, key_tag=record.key_tag, algorithm=record.algorithm, digest_type=record.digest_type,
                   digest=record.digest)
 
+    elif record.rdtype == DataType.PTR.value:
+        return PTR(rdata=record, target=record.target.to_text())
     raise DnsDebuggerException("Unknown record type %s" % record.rdtype)

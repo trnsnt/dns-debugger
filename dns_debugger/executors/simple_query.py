@@ -1,11 +1,12 @@
 """Just make simple basic query"""
 from dns_debugger.exceptions import DnsDebuggerException
 from dns_debugger.executors.testsuite import TestCase
+from dns_debugger.models import Resolver
 
 from dns_debugger.query import dns_query
-from dns_debugger.type import DataType
+from dns_debugger.records_models import DataType
 
-RESOLVERS = [None, '8.8.8.8', '8.8.4.4', '9.9.9.9', '1.1.1.1']
+RESOLVERS = [Resolver(), Resolver(ip_addr='8.8.8.8'), Resolver(ip_addr='9.9.9.9'), Resolver(ip_addr='1.1.1.1')]
 
 
 def run_tests(qname: str):
