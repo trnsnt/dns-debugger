@@ -8,6 +8,9 @@ class DnsDebuggerException(Exception):
         Exception.__init__(self)
         self.message = message
 
+    def __str__(self):
+        return self.message
+
 
 class QueryTimeException(DnsDebuggerException):
     """Exception for timeout"""

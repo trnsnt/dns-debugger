@@ -1,16 +1,13 @@
 """Make dnssec valirdation"""
-import binascii
 import random
-from collections import defaultdict
-from typing import Dict
 
 from dns_debugger import LOGGER
-from dns_debugger.dnssec.type import DS
-from dns_debugger.dnssec.utils import verify_signed_dnskey_rrset
+from dns_debugger.dnssec.utils import verify_dnskey_rrset, get_and_check_parent_ds
 from dns_debugger.exceptions import DnsDebuggerException, QueryNoResponseException
 from dns_debugger.executors.testsuite import TestCase
-from dns_debugger.query import dns_query
-from dns_debugger.type import DataType
+from dns_debugger.models import ChainOfTrust
+from dns_debugger.query import dns_query, Resolver
+from dns_debugger.records_models import DataType
 from dns_debugger.utils import split_qname
 
 TEST_DESCRIPTION = "Checking DNSSEC recursively for {}"
@@ -19,21 +16,19 @@ TEST_DESCRIPTION = "Checking DNSSEC recursively for {}"
 def run_tests(qname: str):
     """Run the test"""
     LOGGER.info("Verifying DNSSEC for qname %s", qname)
-    chain_of_trust = {'DS': defaultdict(list), 'DNSKEY': {}}
-    _add_root_to_chain_of_trust(cot=chain_of_trust)
-
+    chain_of_trust = ChainOfTrust()
     valid = True
     result = 'DNSSEC validation is OK'
-    nsserver_ip = None
+    resolver = Resolver()
+
     try:
         for subqname in split_qname(qname=qname):
+            LOGGER.info("Checking DNSSEC for %s", subqname)
 
-            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, origin=nsserver_ip)
-            nsserver = random.choice(ns_records.records).target
-            nsserver_ips = dns_query(qname=nsserver, rdtype=DataType.A)
-            nsserver_ip = random.choice(nsserver_ips.records).address
+            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, resolver=resolver)
+            resolver = Resolver(qname=random.choice(ns_records.records).target)
 
-            if not _verify_cot(qname=subqname, chain_of_trust=chain_of_trust, origin=nsserver_ip):
+            if not _check_qname(qname=subqname, chain_of_trust=chain_of_trust, origin=resolver):
                 result = "There is no DNSSEC for this zone {}".format(subqname)
                 break
 
@@ -46,42 +41,21 @@ def run_tests(qname: str):
     return [TestCase(description=TEST_DESCRIPTION.format(qname), result=result, success=valid)]
 
 
-def _add_root_to_chain_of_trust(cot: Dict[int, DS]):
-    LOGGER.info("DS record 19036 is now in the chain of trust")
-    cot['DS'][19036].append(DS(rdata=None, key_tag=19036, algorithm=8, digest_type=2,
-                               digest=binascii.unhexlify(
-                                   "49AAC11D7B6F6446702E54A1607371607A1A41855200FD2CE1CDDE32F24E8FB5")))
-
-    LOGGER.info("DS record 20326 is now in the chain of trust")
-    cot['DS'][20326].append(DS(rdata=None, key_tag=20326, algorithm=8, digest_type=2,
-                               digest=binascii.unhexlify(
-                                   "E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
-
-
-def _verify_cot(qname: str, chain_of_trust, origin):
+def _check_qname(qname: str, chain_of_trust, origin):
     LOGGER.info("Verifying chain of trust for qname %s", qname)
-    if qname != ".":
-        LOGGER.info("Get DS record for %s", qname)
-        try:
-            ds_records = dns_query(qname=qname, rdtype=DataType.DS, want_dnssec=True)
-        except QueryNoResponseException:
-            LOGGER.info("NO DS records found in parent zone, zone is not signed")
-            return False
 
-        is_valid = ds_records.is_valid(chain_of_trust)
-        if not is_valid:
-            message = "DS records received for {} are not valid (RRSIG not verified)".format(qname)
-            raise DnsDebuggerException(message=message)
-        for rec in ds_records.rrset.records:
-            LOGGER.debug("Adding %s to the chain of trust", rec)
-            chain_of_trust['DS'][rec.key_tag].append(rec)
+    is_dnssec_activated = get_and_check_parent_ds(qname=qname, chain_of_trust=chain_of_trust)
+    if not is_dnssec_activated:
+        return is_dnssec_activated
 
     try:
-        dnskeys = dns_query(qname=qname, rdtype=DataType.DNSKEY, want_dnssec=True, origin=origin)
+        dnskeys = dns_query(qname=qname, rdtype=DataType.DNSKEY, want_dnssec=True, resolver=origin)
     except QueryNoResponseException:
         raise DnsDebuggerException(
             message="Zone {} is not signed, there is no DNSKEY, but we have a parent DS record. "
-                    "Please remove it".format(qname))
-    LOGGER.info("Got %d DNSKEY", len(dnskeys.rrset.records))
-    verify_signed_dnskey_rrset(rrset=dnskeys, cot=chain_of_trust, qname=qname)
+                    "Please remove DS record or sign the zone".format(qname))
+    LOGGER.info("Got %d DNSKEY", len(dnskeys.records))
+    LOGGER.debug(dnskeys)
+
+    verify_dnskey_rrset(rrset=dnskeys, cot=chain_of_trust, qname=qname)
     return True

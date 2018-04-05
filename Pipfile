@@ -11,6 +11,8 @@ flask = "*"
 
 [dev-packages]
 pylint = "*"
+radon = "*"
+pytest = "*"
 
 [requires]
 python_version = "3.6"
