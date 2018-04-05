@@ -1,23 +1,9 @@
 """Testsuite and testcase"""
 import json
+import typing
 from typing import List
 
-
-class TestCase:
-    """A TestCase is... a testcase"""
-    description: str
-    result: str
-    success: bool
-
-    def __init__(self, description: str, result: str, success: bool):
-        self.description = description
-        self.result = result
-        self.success = success
-
-    def __str__(self):
-        return '[TEST]\nDescription: {descritpion}\nstatus: {success}' \
-               '\nresults: {results}'.format(descritpion=self.description, success='OK' if self.success else 'KO',
-                                             results=self.result)
+TestCase = typing.NamedTuple("TestCase", [("description", str), ("result", str), ("success", bool)])
 
 
 class TestSuite:
@@ -44,19 +30,21 @@ class TestSuite:
         for testcase in testcases:
             self.add_testcase(testcase)
 
-    def get_failues(self):
+    def get_failures(self):
+        """Get testcases in failure"""
         return [t for t in self.testcases if not t.success]
 
     def get_success(self):
+        """Get testcases in success"""
         return [t for t in self.testcases if t.success]
 
     def to_json(self, display_all=True):
         """self to json"""
         to_serialize = {'success': self.success, "failures": self.failures,
-                        "testcases": {"failures": self.get_failues()}}
+                        "testcases": {"failures": self.get_failures()}}
         if display_all:
             to_serialize["testcases"]["success"] = self.get_success()
         return json.dumps(to_serialize, default=lambda o: o.__dict__, indent=2)
 
     def __str__(self):
-        return "\n".join(map(lambda x: '{}\n'.format(x), self.testcases))
+        return "\n".join(map('{}\n'.format, self.testcases))

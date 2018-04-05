@@ -1,50 +1,20 @@
+"""Models for dns_debugger"""
 import binascii
-import random
-from collections import defaultdict
-from typing import Dict
+from typing import Dict, Optional
 
-import dns
-from dns import resolver
+import collections
 
 from dns_debugger import LOGGER
-from dns_debugger.records_models import DataType, DS, DnsKey
-
-
-class Resolver:
-    ip_addr: str
-    qname: str
-
-    def __init__(self, ip_addr=None, qname=None):
-        from dns_debugger.query import dns_query
-        if ip_addr is None and qname is None:
-            self.ip_addr = resolver.Resolver().nameservers[0]
-            self.qname = "default.resolver"
-
-        elif qname and not ip_addr:
-
-            ips = dns_query(qname=qname, rdtype=DataType.A)
-            self.ip_addr = random.choice(ips.records).address
-            self.qname = qname
-
-        elif ip_addr and not qname:
-            arpa_qname = dns.reversename.from_address(ip_addr)
-            self.qname = dns_query(qname=arpa_qname, rdtype=DataType.PTR).records[0].target
-            self.ip_addr = ip_addr
-
-        else:
-            self.ip_addr = ip_addr
-            self.qname = qname
-
-    def __str__(self):
-        return '[{} | {}]'.format(self.qname, self.ip_addr)
+from dns_debugger.records_models import DS, DnsKey
 
 
 class ChainOfTrust:
+    """DNSSEC chain of trust"""
     ds_records: Dict
     dnskeys: Dict
 
     def __init__(self):
-        self.ds_records = defaultdict(list)
+        self.ds_records = collections.defaultdict(list)
         self.dnskeys = dict()
 
         self.add_ds(DS(rdata=None, key_tag=19036, algorithm=8, digest_type=2,
@@ -54,15 +24,19 @@ class ChainOfTrust:
                        digest=binascii.unhexlify("E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D")))
 
     def add_ds(self, record: DS):
+        """Add DS record to chain of trust"""
         LOGGER.info("Adding DS record to chain of trust %s", record)
         self.ds_records[record.key_tag].append(record)
 
     def add_dnskey(self, record: DnsKey):
+        """Add DNSKEY record to chain of trust"""
         LOGGER.info("Adding DNSKEY record to chain of trust %s", record)
         self.dnskeys[record.key_tag()] = record
 
-    def get_dnskey(self, keytag: str):
+    def get_dnskey(self, keytag: str) -> Optional[DnsKey]:
+        """Get dnskey from keytag"""
         return self.dnskeys.get(keytag)
 
-    def get_ds(self, keytag: str):
+    def get_ds(self, keytag: str) -> Optional[DS]:
+        """Get ds from keytag"""
         return self.ds_records.get(keytag)

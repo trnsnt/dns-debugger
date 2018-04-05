@@ -5,8 +5,8 @@ from dns_debugger import LOGGER
 from dns_debugger.dnssec.utils import verify_dnskey_rrset, get_and_check_parent_ds
 from dns_debugger.exceptions import DnsDebuggerException, QueryNoResponseException
 from dns_debugger.executors.testsuite import TestCase
-from dns_debugger.models import Resolver, ChainOfTrust
-from dns_debugger.query import dns_query
+from dns_debugger.models import ChainOfTrust
+from dns_debugger.query import dns_query, Resolver
 from dns_debugger.records_models import DataType
 from dns_debugger.utils import split_qname
 
@@ -25,7 +25,7 @@ def run_tests(qname: str):
         for subqname in split_qname(qname=qname):
             LOGGER.info("Checking DNSSEC for %s", subqname)
 
-            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, origin=resolver)
+            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, resolver=resolver)
             resolver = Resolver(qname=random.choice(ns_records.records).target)
 
             if not _check_qname(qname=subqname, chain_of_trust=chain_of_trust, origin=resolver):
@@ -49,7 +49,7 @@ def _check_qname(qname: str, chain_of_trust, origin):
         return is_dnssec_activated
 
     try:
-        dnskeys = dns_query(qname=qname, rdtype=DataType.DNSKEY, want_dnssec=True, origin=origin)
+        dnskeys = dns_query(qname=qname, rdtype=DataType.DNSKEY, want_dnssec=True, resolver=origin)
     except QueryNoResponseException:
         raise DnsDebuggerException(
             message="Zone {} is not signed, there is no DNSKEY, but we have a parent DS record. "

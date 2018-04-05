@@ -3,8 +3,7 @@ import random
 
 from dns_debugger.exceptions import DnsDebuggerException
 from dns_debugger.executors.testsuite import TestCase
-from dns_debugger.models import Resolver
-from dns_debugger.query import dns_query
+from dns_debugger.query import dns_query, Resolver
 from dns_debugger.records_models import DataType
 from dns_debugger.utils import split_qname
 
@@ -23,7 +22,7 @@ def _recursive_query(qname: str) -> TestCase:
         result += 'Getting NS record for {} from {}'.format(subqname, resolver)
         try:
 
-            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, origin=resolver)
+            ns_records = dns_query(qname=subqname, rdtype=DataType.NS, resolver=resolver)
             result += ' => {}\n'.format(', '.join([ns.target for ns in ns_records.records]))
             resolver = Resolver(qname=random.choice(ns_records.records).target)
         except DnsDebuggerException as err:

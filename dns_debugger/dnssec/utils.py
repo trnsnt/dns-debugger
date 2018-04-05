@@ -33,27 +33,15 @@ def get_and_check_parent_ds(qname, chain_of_trust):
 def verify_dnskey_rrset(rrset: RRSet, cot: ChainOfTrust, qname):
     """Verify a DNSKEY RRSET"""
     LOGGER.info("Checking if DNSKEY RRSET is valid")
+    LOGGER.info("Checking if KSK are validated by DS records in chain of trust")
     for dnskey in rrset.records:
         if dnskey.is_ksk():
-            key_tag = dnskey.key_tag()
-            cot_records = cot.get_ds(key_tag)
-            if not cot_records:
-                LOGGER.debug("DNSKEY %s not verified by DS record", key_tag)
-                continue
-            for cot_record in cot_records:
-                sig = dnskey.compute_sig(qname=qname, digest_type=cot_record.digest_type)
-                LOGGER.debug("Computed signature for DNSKEY %s is %s", key_tag, sig)
-                if sig.upper() != cot_record.digest_str.upper():
-                    LOGGER.critical("Invalid DNSKEY record (computed=%s, parent=%s), exiting", sig,
-                                    cot_record.digest_str.upper())
-                    raise DnsDebuggerException("DNSKEY {} cannot be validated through parent DS record, signature are "
-                                               "different {} != {}".format(key_tag, sig.upper(),
-                                                                           cot_record.digest_str.upper()))
-            LOGGER.info("DNSKEY %s validated through DS record ", key_tag)
-            cot.add_dnskey(dnskey)
+            dnskey.is_validated_by_cot_ds(name=qname, cot=cot)
+
     LOGGER.info("Validation of DNSKEY with received RRSIG")
     if rrset.is_valid(cot):
         for dnskey in rrset.records:
-            cot.add_dnskey(dnskey)
+            if cot.get_dnskey(dnskey.key_tag()) is None:
+                cot.add_dnskey(dnskey)
     else:
         raise DnsDebuggerException(message="RRSET not validated through RRSIG\n{}".format(rrset.rrsig))

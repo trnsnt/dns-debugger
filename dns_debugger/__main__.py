@@ -7,6 +7,32 @@ from dns_debugger.ui import console
 
 def run():
     """Parse args and run"""
+    args, parser = parse_args()
+
+    if args.ui == "console":
+        start_console(args, parser)
+
+    elif args.ui == "server":
+        start_server()
+
+
+def start_server():
+    """Run server mode"""
+    from dns_debugger.ui.server import APP
+    APP.run(host="0.0.0.0")
+
+
+def start_console(args, parser):
+    """Run console mode"""
+    if not args.qname:
+        parser.error("domain not entered")
+    qname = args.qname
+    testsuite = run_tests(qname=qname)
+    console.display(testsuite=testsuite, display_all=args.display_all)
+
+
+def parse_args():
+    """Parse cmd arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--domain", dest="qname",
                         help="FQDN of the DNS zone you want to test")
@@ -17,18 +43,7 @@ def run():
                         action='store_false')
     parser.set_defaults(display_all=True)
     args = parser.parse_args()
-
-    if args.ui == "console":
-        if not args.qname:
-            parser.error("domain not entered")
-        qname = args.qname
-        testsuite = run_tests(qname=qname)
-        console.display(testsuite=testsuite, display_all=args.display_all)
-
-    elif args.ui == "server":
-        from dns_debugger.ui.server import APP
-
-        APP.run(host="0.0.0.0")
+    return args, parser
 
 
 if __name__ == "__main__":

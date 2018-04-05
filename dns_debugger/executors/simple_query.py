@@ -1,9 +1,8 @@
 """Just make simple basic query"""
 from dns_debugger.exceptions import DnsDebuggerException
 from dns_debugger.executors.testsuite import TestCase
-from dns_debugger.models import Resolver
 
-from dns_debugger.query import dns_query
+from dns_debugger.query import dns_query, Resolver
 from dns_debugger.records_models import DataType
 
 RESOLVERS = [Resolver(), Resolver(ip_addr='8.8.8.8'), Resolver(ip_addr='9.9.9.9'), Resolver(ip_addr='1.1.1.1')]
@@ -26,7 +25,7 @@ def _query(qname: str, dtype: DataType, resolver) -> TestCase:
         resolver_name = resolver
     description = "Get {dtype} records for {qname} from {res}".format(dtype=dtype.name, qname=qname, res=resolver_name)
     try:
-        records = dns_query(qname=qname, rdtype=dtype, origin=resolver)
+        records = dns_query(qname=qname, rdtype=dtype, resolver=resolver)
         return TestCase(description=description, result=str(records), success=True)
     except DnsDebuggerException as err:
         return TestCase(description=description, result=err.message, success=False)

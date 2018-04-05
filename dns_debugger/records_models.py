@@ -106,13 +106,18 @@ class Record:
         stuff = struct.pack("!HHIH", dtype, dclass, ttl, rdata_len)
         return name_wire + stuff + rdata_wire
 
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        """Create Record from dnspython rdata"""
+        raise NotImplementedError()
+
     def __eq__(self, other):
         """Used to order record list"""
-        return self._rdata.to_digestable() == other._rdata.to_digestable()
+        return self._rdata.to_digestable() == other._rdata.to_digestable()  # pylint: disable=protected-access
 
     def __lt__(self, other):
         """Used to order record list"""
-        return self._rdata.to_digestable() < other._rdata.to_digestable()
+        return self._rdata.to_digestable() < other._rdata.to_digestable()  # pylint: disable=protected-access
 
     def __repr__(self):
         return str(self)
@@ -120,11 +125,16 @@ class Record:
 
 class A(Record):  # pylint: disable=invalid-name, too-few-public-methods
     """A record"""
+
     address: str
 
     def __init__(self, rdata, address: str):
         super(A, self).__init__(rdata=rdata)
         self.address = address
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, address=rdata.address)
 
     def __str__(self):
         return '{address}'.format(address=self.address)
@@ -138,6 +148,10 @@ class AAAA(Record):  # pylint: disable=too-few-public-methods
         super(AAAA, self).__init__(rdata=rdata)
         self.address = address
 
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, address=rdata.address)
+
     def __str__(self):
         return '{address}'.format(address=self.address)
 
@@ -150,6 +164,10 @@ class TXT(Record):  # pylint: disable=too-few-public-methods
         super(TXT, self).__init__(rdata=rdata)
         self.value = value
 
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, value="".join(map(lambda x: str(x, 'ascii'), rdata.strings)))
+
     def __str__(self):
         return '{value}'.format(value=self.value)
 
@@ -161,6 +179,10 @@ class NS(Record):  # pylint: disable=too-few-public-methods
     def __init__(self, rdata, target: str):
         super(NS, self).__init__(rdata=rdata)
         self.target = target
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, target=rdata.target.to_text())
 
     def __str__(self):
         return '{target}'.format(target=self.target)
@@ -176,6 +198,10 @@ class MX(Record):  # pylint: disable=too-few-public-methods
         self.target = target
         self.preference = preference
 
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, target=rdata.exchange.to_text(), preference=rdata.preference)
+
     def __str__(self):
         return '{preference} {target}'.format(preference=self.preference, target=self.target)
 
@@ -190,6 +216,7 @@ class Soa(Record):  # pylint: disable=too-few-public-methods
     server: str
     email: str
 
+    # pylint: disable=too-many-arguments
     def __init__(self, rdata, ttl: int, server: str, email: str, refresh: int, expire: int, minimum: int, serial: int):
         super(Soa, self).__init__(rdata=rdata)
         self.expire = expire
@@ -199,6 +226,11 @@ class Soa(Record):  # pylint: disable=too-few-public-methods
         self.serial = serial
         self.server = server
         self.email = email
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, ttl=rdata.retry, server=rdata.mname.to_text(), email=rdata.rname.to_text(),
+                   refresh=rdata.refresh, expire=rdata.expire, minimum=rdata.minimum, serial=rdata.serial)
 
     def __str__(self):
         return '{server} {email} {serial} ' \
@@ -220,6 +252,7 @@ class RRSig(Record):
     labels: int
     signer_wire: bytes
 
+    # pylint: disable=too-many-arguments
     def __init__(self, rdata, algorithm: int, expiration: int, inception: int, key_tag: int, signature: bytes,
                  signer: str,
                  type_covered: int, original_ttl: int, labels: int):
@@ -233,6 +266,12 @@ class RRSig(Record):
         self.type_covered = type_covered
         self.original_ttl = original_ttl
         self.labels = labels
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, algorithm=rdata.algorithm, expiration=rdata.expiration, inception=rdata.inception,
+                   key_tag=rdata.key_tag, signature=rdata.signature, signer=rdata.signer.to_text(),
+                   type_covered=rdata.type_covered, original_ttl=rdata.original_ttl, labels=rdata.labels)
 
     @property
     def signature_str(self) -> str:
@@ -250,11 +289,11 @@ class RRSig(Record):
 
     def __str__(self):
         return '{type} {algo} {label} {ttl} {expiration} {inception} ' \
-               '{key_tag} {signer} {signature}'.format(type=self.type_covered, algo=self.algorithm,
-                                                       expiration=self.expiration, inception=self.inception,
-                                                       key_tag=self.key_tag, signer=self.signer,
-                                                       signature=self.signature_str, label=self.labels,
-                                                       ttl=self.original_ttl)
+               '{key_tag} {signer} {signature}...'.format(type=self.type_covered, algo=self.algorithm,
+                                                          expiration=self.expiration, inception=self.inception,
+                                                          key_tag=self.key_tag, signer=self.signer,
+                                                          signature=self.signature_str[:25], label=self.labels,
+                                                          ttl=self.original_ttl)
 
 
 class PTR(Record):  # pylint: disable=invalid-name, too-few-public-methods
@@ -264,6 +303,10 @@ class PTR(Record):  # pylint: disable=invalid-name, too-few-public-methods
     def __init__(self, rdata, target: str):
         super(PTR, self).__init__(rdata=rdata)
         self.target = target
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, target=rdata.target.to_text())
 
     def __str__(self):
         return '{target}'.format(target=self.target)
@@ -276,12 +319,18 @@ class DS(Record):
     digest_type: int
     digest: bytes
 
+    # pylint: disable=too-many-arguments
     def __init__(self, rdata, key_tag: int, algorithm: int, digest_type: int, digest: bytes):
         super(DS, self).__init__(rdata=rdata)
         self.key_tag = key_tag
         self.algorithm = algorithm
         self.digest_type = digest_type
         self.digest = digest
+
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, key_tag=rdata.key_tag, algorithm=rdata.algorithm, digest_type=rdata.digest_type,
+                   digest=rdata.digest)
 
     @property
     def digest_str(self) -> str:
@@ -301,6 +350,7 @@ class DnsKey(Record):
     algo: int
     public_key: bytes
 
+    # pylint: disable=too-many-arguments
     def __init__(self, rdata, flags: int, protocol: int, algo: int, public_key: bytes):
         super(DnsKey, self).__init__(rdata=rdata)
         self.flags = flags
@@ -308,10 +358,37 @@ class DnsKey(Record):
         self.algo = algo
         self.public_key = public_key
 
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        return cls(rdata=rdata, flags=rdata.flags, protocol=rdata.protocol, algo=rdata.algorithm, public_key=rdata.key)
+
     @property
     def pk_str(self) -> str:
         """Digest to str"""
         return str(base64.b64encode(self.public_key), 'ascii')
+
+    def is_validated_by_cot_ds(self, name, cot):
+        """
+        Check if DNSKEY is validated by a DS record in the chain of trust
+        :param name: targeted qname
+        :param cot: Chain of Trust
+        """
+        key_tag = self.key_tag()
+        cot_records = cot.get_ds(key_tag)
+        if not cot_records:
+            LOGGER.debug("DNSKEY %s not verified by DS record", key_tag)
+            return
+        for cot_record in cot_records:
+            sig = self.compute_sig(qname=name, digest_type=cot_record.digest_type)
+            LOGGER.debug("Computed signature for DNSKEY %s is %s", key_tag, sig)
+            if sig.upper() != cot_record.digest_str.upper():
+                LOGGER.critical("Invalid DNSKEY record (computed=%s, parent=%s), exiting", sig,
+                                cot_record.digest_str.upper())
+                raise DnsDebuggerException("DNSKEY {} cannot be validated through parent DS record, signature are "
+                                           "different {} != {}".format(key_tag, sig.upper(),
+                                                                       cot_record.digest_str.upper()))
+        LOGGER.info("DNSKEY %s validated through DS record ", key_tag)
+        cot.add_dnskey(self)
 
     def is_ksk(self):
         """Is DNSKEY is a key signing key"""
@@ -370,6 +447,7 @@ class RRSet(Record):
     ttl: int
     rrsig: typing.List[RRSig]
 
+    # pylint: disable=too-many-arguments
     def __init__(self, rdata, records: typing.List[Record], name: str, rdtype: int, rdclass: int, ttl: int,
                  rrsig=None):
         super(RRSet, self).__init__(rdata=rdata)
@@ -380,7 +458,32 @@ class RRSet(Record):
         self.ttl = ttl
         self.rrsig = rrsig or []
 
-    def is_signed(self):
+    @classmethod
+    def create_from_rdata(cls, rdata):
+        raise NotImplementedError()
+
+    def check_from_rrsig(self, cot, rrsig) -> bool:
+        """Verify rrsig"""
+        signing_key = cot.get_dnskey(rrsig.key_tag)
+        if signing_key is None:
+            if self.rdtype == DataType.DNSKEY.value:
+                for record in self.records:
+                    if record.key_tag() == rrsig.key_tag:
+                        signing_key = record
+                        break
+            if signing_key is None:
+                LOGGER.warning("RRSIG key_tag %s is not in the chain of trust", rrsig.key_tag)
+                raise DnsDebuggerException("RRSIG key_tag {} is not in the chain of trust".format(rrsig.key_tag))
+        msg = self.compute_msg(rrsig=rrsig)
+        if rrsig.algorithm in (5, 7, 8, 10):
+            return is_rsa_valid(key=signing_key.public_key, msg=msg, signature=rrsig.signature, alg=signing_key.algo)
+        elif rrsig.algorithm in (13, 14):
+            return is_ec_valid(key=signing_key.public_key, msg=msg, signature=rrsig.signature,
+                               alg=signing_key.algo)
+        raise DnsDebuggerException("RRSIG algorithm {} not yet supported".format(rrsig.algorithm))
+
+    def is_signed(self) -> bool:
+        """Is RRSET signed"""
         return bool(self.rrsig)
 
     def canonicalized_wire_rrset(self, original_ttl):
@@ -394,33 +497,15 @@ class RRSet(Record):
         """Check if RRSet is valid through RRSig"""
         LOGGER.info("Checking if RRSET is validated by RRSIG %s", self)
         for rrsig in self.rrsig:
-            signing_key = cot.get_dnskey(rrsig.key_tag)
-            if signing_key is None:
-                # We have a DNSKEY, look in it
-                if self.rdtype == DataType.DNSKEY.value:
-                    for record in self.records:
-                        if record.key_tag() == rrsig.key_tag:
-                            signing_key = record
-                            break
-                if signing_key is None:
-                    LOGGER.warning("RRSIG key_tag %s is not in the chain of trust", rrsig.key_tag)
-                    raise DnsDebuggerException("RRSIG key_tag {} is not in the chain of trust".format(rrsig.key_tag))
-            if rrsig.algorithm in (5, 7, 8, 10):
-                return is_rsa_valid(key=signing_key.public_key, msg=self.compute_msg(rrsig=rrsig),
-                                    signature=rrsig.signature,
-                                    alg=signing_key.algo)
-            elif rrsig.algorithm in (13, 14):
-                return is_ec_valid(signing_key.public_key, msg=self.compute_msg(rrsig=rrsig),
-                                   signature=rrsig.signature,
-                                   alg=rrsig.algorithm)
-            raise DnsDebuggerException("RRSIG algorithm {} not yet supported".format(rrsig.algorithm))
+            self.check_from_rrsig(cot=cot, rrsig=rrsig)
+        return True
 
     def compute_msg(self, rrsig):
         """Compute msg"""
         return rrsig.canonicalized_wire() + self.canonicalized_wire_rrset(original_ttl=rrsig.original_ttl)
 
     def __str__(self):
-        values = ", ".join(map(lambda x: '{}'.format(x), self.records))
+        values = ", ".join(map(str, self.records))
         rrset = '[RRSET-{type}][TTL:{ttl}][{values}]'.format(values=values, type=DataType(self.rdtype).name,
                                                              ttl=self.ttl)
         if self.rrsig:

@@ -9,7 +9,12 @@ from dns_debugger.exceptions import DnsDebuggerException
 
 
 def _key_to_ec_pubkey(alg, key):
-    """"""
+    """
+
+    :param alg:
+    :param key:
+    :return:
+    """
     if alg == 13:
         curve = EC.NID_X9_62_prime256v1
     elif alg == 14:
