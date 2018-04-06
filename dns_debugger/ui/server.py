@@ -1,9 +1,9 @@
 """Create a small flask APP"""
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, render_template
 
 from dns_debugger.executors import run_tests
 
-APP = Flask(__name__)
+APP = Flask(__name__, static_url_path='')
 
 
 @APP.route('/monitoring/ping')
@@ -12,7 +12,14 @@ def ping():
     return jsonify("pong")
 
 
-@APP.route('/<qname>')
+@APP.route('/check/<qname>')
+def check(qname):
+    """Check qname"""
+    testsuite = run_tests(qname=qname)
+    return render_template("testsuite.html", testsuite=testsuite, qname=qname)
+
+
+@APP.route('/api/check/<qname>')
 def check_qname(qname):
     """Check qname"""
     testsuite = run_tests(qname=qname)

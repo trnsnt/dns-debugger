@@ -19,7 +19,7 @@ def run():
 def start_server():
     """Run server mode"""
     from dns_debugger.ui.server import APP
-    APP.run(host="0.0.0.0")
+    APP.run(host="0.0.0.0", port=8080)
 
 
 def start_console(args, parser):

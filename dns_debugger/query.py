@@ -12,7 +12,7 @@ from dns_debugger.exceptions import QueryTimeException, QueryErrException, DnsDe
     QueryNoResponseException
 from dns_debugger.records_models import RRSet, DataType, A, TXT, NS, Soa, AAAA, MX, DnsKey, RRSig, DS, PTR, Record
 
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 5
 
 MODELS_MAP: Dict[int, Record] = {
     DataType.A.value: A,
@@ -51,14 +51,15 @@ class Resolver(typing.NamedTuple("Resolver", [("ip_addr", str), ("qname", str)])
         return '[{} | {}]'.format(self.qname, self.ip_addr)
 
 
-def dns_query(qname: str, rdtype: DataType, want_dnssec: bool = False, resolver: Optional['Resolver'] = None) -> RRSet:
+def dns_query(qname: str, rdtype: DataType, want_dnssec: bool = False, resolver: Optional['Resolver'] = None,
+              is_tcp: bool = False) -> RRSet:
     """Make a DNS query"""
     if resolver is None:
         resolver = Resolver()
 
     LOGGER.debug("Querying %s for type %s, origin %s", qname, rdtype.name, resolver)
 
-    response = run_query(resolver.ip_addr, qname, rdtype, want_dnssec)
+    response = run_query(resolver.ip_addr, qname, rdtype, want_dnssec, is_tcp)
 
     answer = response.answer or response.authority
     if not answer:
@@ -89,7 +90,7 @@ def map_answers(answer, want_dnssec):
     return rrset
 
 
-def run_query(resolver_ip: str, qname: str, rdtype: DataType, want_dnssec: bool):
+def run_query(resolver_ip: str, qname: str, rdtype: DataType, want_dnssec: bool, is_tcp: bool = False):
     """
     Make a DNS query
     :param resolver_ip: IP of wanted resolver
@@ -100,7 +101,10 @@ def run_query(resolver_ip: str, qname: str, rdtype: DataType, want_dnssec: bool)
     """
     message = dns.message.make_query(qname, rdtype.value, use_edns=0, payload=4096, want_dnssec=want_dnssec)
     try:
-        response = dns.query.udp(message, resolver_ip, timeout=DEFAULT_TIMEOUT)
+        if is_tcp:
+            response = dns.query.tcp(message, resolver_ip, timeout=DEFAULT_TIMEOUT)
+        else:
+            response = dns.query.udp(message, resolver_ip, timeout=DEFAULT_TIMEOUT)
     except dns.exception.Timeout:
         raise QueryTimeException(message="Timeout during dns query "
                                          "(origin={}, dest={}, type={})".format(resolver_ip, qname, rdtype.name))

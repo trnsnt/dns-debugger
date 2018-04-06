@@ -8,11 +8,13 @@ dnspython = "*"
 blessings = "*"
 "m2crypto" = "*"
 flask = "*"
+simplejson = "*"
 
 [dev-packages]
 pylint = "*"
 radon = "*"
 pytest = "*"
+coverage = "*"
 
 [requires]
 python_version = "3.6"

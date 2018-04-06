@@ -1,6 +1,6 @@
 """Just make simple basic query"""
 from dns_debugger.exceptions import DnsDebuggerException
-from dns_debugger.executors.testsuite import TestCase
+from dns_debugger.executors.testsuite import TestCase, TestStep, TestStatus
 
 from dns_debugger.query import dns_query, Resolver
 from dns_debugger.records_models import DataType
@@ -12,20 +12,23 @@ def run_tests(qname: str):
     """Run the test"""
     suites = []
     for datatype in [DataType.SOA, DataType.NS, DataType.A, DataType.AAAA, DataType.MX, DataType.TXT]:
+        testcase = TestCase(description="Get {dtype} records for {qname}".format(dtype=datatype.name, qname=qname))
         for resolver in RESOLVERS:
-            suites.append(_query(qname=qname, dtype=datatype, resolver=resolver))
+            for is_tcp in [False]:
+                testcase.add_step(_query(qname=qname, dtype=datatype, resolver=resolver, is_tcp=is_tcp))
+        suites.append(testcase)
     return suites
 
 
-def _query(qname: str, dtype: DataType, resolver) -> TestCase:
+def _query(qname: str, dtype: DataType, resolver, is_tcp) -> TestStep:
     """Make the dns query"""
     if resolver is None:
         resolver_name = "default resolver"
     else:
         resolver_name = resolver
-    description = "Get {dtype} records for {qname} from {res}".format(dtype=dtype.name, qname=qname, res=resolver_name)
+    description = "{protocol} with resolver: {res}".format(protocol='TCP' if is_tcp else "UDP", res=resolver_name)
     try:
-        records = dns_query(qname=qname, rdtype=dtype, resolver=resolver)
-        return TestCase(description=description, result=str(records), success=True)
+        records = dns_query(qname=qname, rdtype=dtype, resolver=resolver, is_tcp=is_tcp)
+        return TestStep(description=description, result=str(records), status=TestStatus.SUCCESS)
     except DnsDebuggerException as err:
-        return TestCase(description=description, result=err.message, success=False)
+        return TestStep(description=description, result=err.message, status=TestStatus.ERROR)
